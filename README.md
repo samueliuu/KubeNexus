@@ -104,7 +104,7 @@ export SERVER_URL=http://localhost:8080
 ./kubenexus
 ```
 
-访问 `http://localhost:8080`，默认账号 `admin / admin`。
+访问 `http://localhost:8080`，首次启动自动创建，密码输出到控制台日志。
 
 ### 安装 Agent
 
@@ -148,7 +148,11 @@ KubeNexus/
 ├── scripts/                   # 运维脚本
 │   └── install-k3s.sh         # K3s + Agent 安装脚本
 └── docs/                      # 文档
-    └── design.md              # 设计文档
+    ├── architecture.md        # 架构设计
+    ├── api-reference.md       # API参考
+    ├── deployment-guide.md    # 部署指南
+    ├── development-guide.md   # 开发指南
+    └── changelog.md           # 版本变更日志
 ```
 
 ## 环境变量
