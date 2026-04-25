@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react'
 import { ProTable, ModalForm, ProFormSelect, ProFormDigit, ProFormTextArea } from '@ant-design/pro-components'
-import { Button, Tag, message } from 'antd'
+import { Button, Tag, message, Modal } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { deploymentApi, applicationApi, clusterApi, Deployment, Application, Cluster } from '../api'
 
@@ -22,12 +22,12 @@ const Deployments: React.FC = () => {
       const map: Record<string, string> = {}
       ;(res.data.items || []).forEach((c: Cluster) => { map[c.id] = c.display_name || c.name })
       setClusterMap(map)
-    })
+    }).catch(() => {})
     applicationApi.list().then((res) => {
       const map: Record<string, string> = {}
       ;(res.data.items || []).forEach((a: Application) => { map[a.id] = a.display_name || a.name })
       setAppMap(map)
-    })
+    }).catch(() => {})
   }, [])
 
   const columns: any[] = [
@@ -63,9 +63,14 @@ const Deployments: React.FC = () => {
           key="del"
           style={{ color: '#ff4d4f' }}
           onClick={() => {
-            deploymentApi.delete(r.id).then(() => {
-              message.success('删除成功')
-              actionRef.current?.reload()
+            Modal.confirm({
+              title: '确认删除',
+              content: `确定要删除部署 "${r.name}" 吗？此操作不可恢复。`,
+              okType: 'danger',
+              onOk: () => deploymentApi.delete(r.id).then(() => {
+                message.success('删除成功')
+                actionRef.current?.reload()
+              }).catch((err: any) => { message.error(err.response?.data?.error || '操作失败') }),
             })
           }}
         >删除</a>,

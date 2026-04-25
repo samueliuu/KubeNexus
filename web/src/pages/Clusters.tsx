@@ -1,7 +1,7 @@
 import React, { useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ProTable, ModalForm, ProFormText, ProFormSelect } from '@ant-design/pro-components'
-import { Button, Tag, message } from 'antd'
+import { Button, Tag, message, Modal } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { clusterApi, organizationApi, Cluster, Organization } from '../api'
 
@@ -30,7 +30,7 @@ const Clusters: React.FC = () => {
     { title: '最后心跳', dataIndex: 'last_heartbeat', valueType: 'dateTime', hideInSearch: true },
     { title: '操作', valueType: 'option', render: (_: any, r: Cluster) => [
       <a key="detail" onClick={() => navigate(`/clusters/${r.id}`)}>详情</a>,
-      <a key="del" style={{ color: '#ff4d4f' }} onClick={() => { clusterApi.delete(r.id).then(() => { message.success('删除成功'); actionRef.current?.reload() }) }}>删除</a>,
+      <a key="del" style={{ color: '#ff4d4f' }} onClick={() => { Modal.confirm({ title: '确认删除', content: `确定要删除集群 "${r.name}" 吗？此操作不可恢复。`, okType: 'danger', onOk: () => clusterApi.delete(r.id).then(() => { message.success('删除成功'); actionRef.current?.reload() }).catch((err: any) => { message.error(err.response?.data?.error || '操作失败') }) }) }}>删除</a>,
     ]},
   ]
 

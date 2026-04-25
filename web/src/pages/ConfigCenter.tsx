@@ -72,7 +72,12 @@ const ConfigCenter: React.FC = () => {
           key="del"
           style={{ color: '#ff4d4f' }}
           onClick={() => {
-            configApi.delete(r.id).then(() => { message.success('删除成功'); actionRef.current?.reload() })
+            Modal.confirm({
+              title: '确认删除',
+              content: `确定要删除配置 "${r.name}" 吗？此操作不可恢复。`,
+              okType: 'danger',
+              onOk: () => configApi.delete(r.id).then(() => { message.success('删除成功'); actionRef.current?.reload() }).catch((err: any) => { message.error(err.response?.data?.error || '操作失败') }),
+            })
           }}
         >
           删除

@@ -386,7 +386,7 @@ const ClusterDetail: React.FC = () => {
           setNewLabelValue('')
         }}
         confirmLoading={labelSaving}
-        destroyOnHidden
+        destroyOnClose
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
@@ -426,7 +426,7 @@ const ClusterDetail: React.FC = () => {
           </Space>
         }
         width={720}
-        destroyOnHidden
+        destroyOnClose
       >
         <pre
           style={{
@@ -463,7 +463,7 @@ const ClusterDetail: React.FC = () => {
           </Space>
         }
         width={720}
-        destroyOnHidden
+        destroyOnClose
       >
         <pre
           style={{

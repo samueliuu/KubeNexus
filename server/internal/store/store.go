@@ -2,11 +2,14 @@ package store
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"time"
 
 	"github.com/kubenexus/server/internal/model"
 	"github.com/glebarez/sqlite"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -49,12 +52,23 @@ func (s *Store) ensureDefaultAdmin() {
 	var count int64
 	s.DB.Model(&model.User{}).Count(&count)
 	if count == 0 {
+		rawPassword := uuid.New().String()[:12]
+		hashed, err := bcrypt.GenerateFromPassword([]byte(rawPassword), bcrypt.DefaultCost)
+		if err != nil {
+			log.Fatalf("failed to hash default admin password: %v", err)
+		}
 		s.DB.Create(&model.User{
 			ID:       "user-admin",
 			Username: "admin",
-			Password: "$2a$10$xRsCiROP/xF0nf7prlBZd.KxG4RoOj/3igNfBCIRxeQVh4yeOzA9u",
+			Password: string(hashed),
 			Role:     "admin",
 		})
+		log.Printf("========================================")
+		log.Printf("默认管理员账号已创建")
+		log.Printf("用户名: admin")
+		log.Printf("密码: %s", rawPassword)
+		log.Printf("请立即登录并修改密码！")
+		log.Printf("========================================")
 	}
 }
 
@@ -128,7 +142,8 @@ func (s *Store) ListClustersByLabels(labels map[string]string) ([]model.Cluster,
 		if !labelKeyPattern.MatchString(k) {
 			return nil, fmt.Errorf("invalid label key: %s", k)
 		}
-		q = q.Where("json_extract(labels, '$.\""+k+"\"') = ?", v)
+		jsonPath := "$.\"" + k + "\""
+		q = q.Where("json_extract(labels, ?) = ?", jsonPath, v)
 	}
 	if err := q.Find(&clusters).Error; err != nil {
 		return nil, err
@@ -296,11 +311,14 @@ func (s *Store) CreateAlertRecord(r *model.AlertRecord) error {
 	return s.DB.Create(r).Error
 }
 
-func (s *Store) ListAlertRecords(clusterID string, limit int) ([]model.AlertRecord, error) {
+func (s *Store) ListAlertRecords(clusterID string, status string, limit int) ([]model.AlertRecord, error) {
 	var records []model.AlertRecord
 	q := s.DB.Order("triggered_at DESC")
 	if clusterID != "" {
 		q = q.Where("cluster_id = ?", clusterID)
+	}
+	if status != "" {
+		q = q.Where("status = ?", status)
 	}
 	if limit > 0 {
 		q = q.Limit(limit)
@@ -313,6 +331,31 @@ func (s *Store) ListAlertRecords(clusterID string, limit int) ([]model.AlertReco
 
 func (s *Store) UpdateAlertRecord(r *model.AlertRecord) error {
 	return s.DB.Save(r).Error
+}
+
+func (s *Store) GetFiringAlertRecord(ruleID string, clusterID string) (*model.AlertRecord, error) {
+	var r model.AlertRecord
+	if err := s.DB.Where("rule_id = ? AND cluster_id = ? AND status = ?", ruleID, clusterID, "firing").First(&r).Error; err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+func (s *Store) ListFiringAlertRecords(ruleID string, clusterID string) ([]model.AlertRecord, error) {
+	var records []model.AlertRecord
+	q := s.DB.Where("rule_id = ? AND cluster_id = ? AND status = ?", ruleID, clusterID, "firing")
+	if err := q.Find(&records).Error; err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (s *Store) GetAlertRecordByID(id string) (*model.AlertRecord, error) {
+	var r model.AlertRecord
+	if err := s.DB.First(&r, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 func (s *Store) CreateConfigTemplate(c *model.ConfigTemplate) error {
@@ -351,11 +394,17 @@ func (s *Store) CreateAuditLog(a *model.AuditLog) error {
 	return s.DB.Create(a).Error
 }
 
-func (s *Store) ListAuditLogs(resourceType string, limit int) ([]model.AuditLog, error) {
+func (s *Store) ListAuditLogs(resourceType string, username string, action string, limit int) ([]model.AuditLog, error) {
 	var logs []model.AuditLog
 	q := s.DB.Order("created_at DESC")
 	if resourceType != "" {
 		q = q.Where("resource_type = ?", resourceType)
+	}
+	if username != "" {
+		q = q.Where("username = ?", username)
+	}
+	if action != "" {
+		q = q.Where("action = ?", action)
 	}
 	if limit > 0 {
 		q = q.Limit(limit)

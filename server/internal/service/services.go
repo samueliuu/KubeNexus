@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/kubenexus/server/internal/model"
@@ -230,8 +231,22 @@ func (svc *AlertService) DeleteAlertRule(id string) error {
 	return svc.store.DeleteAlertRule(id)
 }
 
-func (svc *AlertService) ListAlertRecords(clusterID string, limit int) ([]model.AlertRecord, error) {
-	return svc.store.ListAlertRecords(clusterID, limit)
+func (svc *AlertService) ListAlertRecords(clusterID string, status string, limit int) ([]model.AlertRecord, error) {
+	return svc.store.ListAlertRecords(clusterID, status, limit)
+}
+
+func (svc *AlertService) AcknowledgeAlertRecord(id string) error {
+	record, err := svc.store.GetAlertRecordByID(id)
+	if err != nil {
+		return fmt.Errorf("alert record not found")
+	}
+	if record.Status == "firing" {
+		record.Status = "resolved"
+		now := time.Now()
+		record.ResolvedAt = now
+		return svc.store.UpdateAlertRecord(record)
+	}
+	return nil
 }
 
 type CreateAlertRuleRequest struct {
@@ -344,8 +359,8 @@ func (svc *AuditService) Log(userID, username, action, resourceType, resourceID,
 	return svc.store.CreateAuditLog(a)
 }
 
-func (svc *AuditService) ListAuditLogs(resourceType string, limit int) ([]model.AuditLog, error) {
-	return svc.store.ListAuditLogs(resourceType, limit)
+func (svc *AuditService) ListAuditLogs(resourceType string, username string, action string, limit int) ([]model.AuditLog, error) {
+	return svc.store.ListAuditLogs(resourceType, username, action, limit)
 }
 
 type UserService struct {
@@ -472,7 +487,7 @@ func (svc *DashboardService) GetStats() (*DashboardStats, error) {
 
 	totalDeployments, _ := svc.store.CountDeployments()
 
-	alertRecords, _ := svc.store.ListAlertRecords("", 5)
+	alertRecords, _ := svc.store.ListAlertRecords("", "", 5)
 
 	return &DashboardStats{
 		TotalClusters:       len(clusters),

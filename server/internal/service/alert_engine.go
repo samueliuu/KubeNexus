@@ -122,8 +122,7 @@ func (e *AlertEngine) fireAlert(rule model.AlertRule, clusterID string, format s
 		msg = fmt.Sprintf(format, args...)
 	}
 
-	var existing model.AlertRecord
-	err := e.store.DB.Where("rule_id = ? AND cluster_id = ? AND status = ?", rule.ID, clusterID, "firing").First(&existing).Error
+	_, err := e.store.GetFiringAlertRecord(rule.ID, clusterID)
 	if err == nil {
 		return
 	}
@@ -148,8 +147,10 @@ func (e *AlertEngine) fireAlert(rule model.AlertRule, clusterID string, format s
 }
 
 func (e *AlertEngine) resolveAlert(ruleID string, clusterID string) {
-	var records []model.AlertRecord
-	e.store.DB.Where("rule_id = ? AND cluster_id = ? AND status = ?", ruleID, clusterID, "firing").Find(&records)
+	records, err := e.store.ListFiringAlertRecords(ruleID, clusterID)
+	if err != nil {
+		return
+	}
 	now := time.Now()
 	for i := range records {
 		records[i].Status = "resolved"

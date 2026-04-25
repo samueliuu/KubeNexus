@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"strings"
 
 	"github.com/kubenexus/server/internal/api"
 	"github.com/kubenexus/server/internal/middleware"
@@ -91,9 +92,12 @@ func main() {
 }
 
 func corsMiddleware() gin.HandlerFunc {
+	allowedOrigins := []string{"http://localhost:3000", "http://localhost:3001"}
+	if envOrigins := os.Getenv("CORS_ORIGINS"); envOrigins != "" {
+		allowedOrigins = strings.Split(envOrigins, ",")
+	}
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
-		allowedOrigins := []string{"http://localhost:3000", "http://localhost:3001"}
 		allowOrigin := ""
 		for _, o := range allowedOrigins {
 			if origin == o {

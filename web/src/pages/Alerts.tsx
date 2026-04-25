@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { ProTable, ModalForm, ProFormText, ProFormSelect, ProFormTextArea, ProCard } from '@ant-design/pro-components'
-import { Button, Tag, Switch, message } from 'antd'
+import { Button, Tag, Switch, message, Modal } from 'antd'
 import { PlusOutlined, EditOutlined, CheckOutlined } from '@ant-design/icons'
 import { alertApi, AlertRule, AlertRecord } from '../api'
 
@@ -33,11 +33,11 @@ const Alerts: React.FC = () => {
       render: (_: string) => <Tag color={severityColors[_]}>{severityLabels[_] || _}</Tag> },
     { title: '通知渠道', dataIndex: 'notify_channels', hideInSearch: true, ellipsis: true },
     { title: '启用', dataIndex: 'enabled', hideInSearch: true,
-      render: (_: boolean, r: AlertRule) => <Switch checked={_} size="small" onChange={(c) => { alertApi.updateRule(r.id, { enabled: c }).then(() => ruleRef.current?.reload()) }} /> },
+      render: (_: boolean, r: AlertRule) => <Switch checked={_} size="small" onChange={(c) => { alertApi.updateRule(r.id, { enabled: c }).then(() => ruleRef.current?.reload()).catch((err: any) => { message.error(err.response?.data?.error || '操作失败') }) }} /> },
     { title: '最后触发', dataIndex: 'last_triggered', valueType: 'dateTime', hideInSearch: true },
     { title: '操作', valueType: 'option', render: (_: any, r: AlertRule) => [
       <a key="edit" onClick={() => handleEditRule(r)}><EditOutlined /> 编辑</a>,
-      <a key="del" style={{ color: '#ff4d4f' }} onClick={() => { alertApi.deleteRule(r.id).then(() => { message.success('删除成功'); ruleRef.current?.reload() }) }}>删除</a>,
+      <a key="del" style={{ color: '#ff4d4f' }} onClick={() => { Modal.confirm({ title: '确认删除', content: `确定要删除告警规则 "${r.name}" 吗？此操作不可恢复。`, okType: 'danger', onOk: () => alertApi.deleteRule(r.id).then(() => { message.success('删除成功'); ruleRef.current?.reload() }).catch((err: any) => { message.error(err.response?.data?.error || '操作失败') }) }) }}>删除</a>,
     ]},
   ]
 

@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react'
 import { ProCard, ProTable, ModalForm, ProFormText, ProFormDigit, ProFormSelect } from '@ant-design/pro-components'
-import { Button, Descriptions, Tag, message, Progress } from 'antd'
+import { Button, Descriptions, Tag, message, Progress, Modal } from 'antd'
 import { PlusOutlined, EditOutlined } from '@ant-design/icons'
 import { licenseApi, userApi, auditApi, License, User, AuditLog, LicenseQuota } from '../api'
 
@@ -58,7 +58,12 @@ const Settings: React.FC = () => {
           key="del"
           style={{ color: '#ff4d4f' }}
           onClick={() => {
-            userApi.delete(r.id).then(() => { message.success('删除成功'); userRef.current?.reload() })
+            Modal.confirm({
+              title: '确认删除',
+              content: `确定要删除用户 "${r.username}" 吗？此操作不可恢复。`,
+              okType: 'danger',
+              onOk: () => userApi.delete(r.id).then(() => { message.success('删除成功'); userRef.current?.reload() }).catch((err: any) => { message.error(err.response?.data?.error || '操作失败') }),
+            })
           }}
         >
           删除

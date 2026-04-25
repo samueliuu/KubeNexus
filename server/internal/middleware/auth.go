@@ -18,7 +18,7 @@ var jwtSecret []byte
 func InitAuth(_ *store.Store) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		log.Println("WARNING: JWT_SECRET not set, using random secret. Set JWT_SECRET for production!")
+		log.Println("WARNING: JWT_SECRET not set. Tokens will be invalidated on restart. Set JWT_SECRET for production!")
 		secret = "kubenexus-" + strings.ReplaceAll(uuid.New().String(), "-", "")
 	}
 	jwtSecret = []byte(secret)

@@ -132,7 +132,7 @@ const Dashboard: React.FC = () => {
                 <Progress
                   type="dashboard"
                   percent={quota.clusters.max > 0 ? Math.round((quota.clusters.current / quota.clusters.max) * 100) : 0}
-                  strokeColor={quota.clusters.current / quota.clusters.max > 0.8 ? '#ff4d4f' : '#1890ff'}
+                  strokeColor={quota.clusters.max > 0 && quota.clusters.current / quota.clusters.max > 0.8 ? '#ff4d4f' : '#1890ff'}
                   size={120}
                 />
               </div>
@@ -147,7 +147,7 @@ const Dashboard: React.FC = () => {
                 <Progress
                   type="dashboard"
                   percent={quota.deployments.max > 0 ? Math.round((quota.deployments.current / quota.deployments.max) * 100) : 0}
-                  strokeColor={quota.deployments.current / quota.deployments.max > 0.8 ? '#ff4d4f' : '#13c2c2'}
+                  strokeColor={quota.deployments.max > 0 && quota.deployments.current / quota.deployments.max > 0.8 ? '#ff4d4f' : '#13c2c2'}
                   size={120}
                 />
               </div>

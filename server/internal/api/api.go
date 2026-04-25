@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -8,7 +9,6 @@ import (
 	"time"
 
 	"github.com/kubenexus/server/internal/middleware"
-	"github.com/kubenexus/server/internal/model"
 	"github.com/kubenexus/server/internal/service"
 	"github.com/kubenexus/server/internal/store"
 	"github.com/kubenexus/server/internal/tunnel"
@@ -148,7 +148,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 			alerts.PUT("/rules/:id", middleware.AdminMiddleware(), h.UpdateAlertRule)
 			alerts.DELETE("/rules/:id", middleware.AdminMiddleware(), h.DeleteAlertRule)
 			alerts.GET("/records", h.ListAlertRecords)
-			alerts.PUT("/records/:id/acknowledge", h.AcknowledgeAlertRecord)
+			alerts.PUT("/records/:id/acknowledge", middleware.AdminMiddleware(), h.AcknowledgeAlertRecord)
 		}
 
 		configs := api.Group("/configs")
@@ -422,12 +422,17 @@ func (h *Handler) ProxyK8sAPI(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	blockedPrefixes := []string{"/api/v1/secrets", "/api/v1/configmaps"}
-	for _, prefix := range blockedPrefixes {
+	allowedK8sPaths := []string{"/api/v1/nodes", "/api/v1/pods", "/api/v1/services", "/api/v1/namespaces", "/apis/apps/v1/deployments", "/api/v1/events"}
+	allowed := false
+	for _, prefix := range allowedK8sPaths {
 		if strings.HasPrefix(req.Path, prefix) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "access to this resource type is restricted"})
-			return
+			allowed = true
+			break
 		}
+	}
+	if !allowed || req.Method != "GET" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access to this K8s API path is restricted"})
+		return
 	}
 	resp, err := h.TunnelMgr.ProxyRequest(id, &tunnel.TunnelPayload{
 		Method:  req.Method,
@@ -461,7 +466,13 @@ func (h *Handler) GetClusterNodes(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"items": []interface{}{}})
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	var k8sResp map[string]interface{}
+	if err := json.Unmarshal([]byte(resp.Body), &k8sResp); err != nil {
+		c.JSON(http.StatusOK, gin.H{"items": []interface{}{}})
+		return
+	}
+	items, _ := k8sResp["items"].([]interface{})
+	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
 func (h *Handler) CreateApplication(c *gin.Context) {
@@ -745,19 +756,9 @@ func (h *Handler) ListAlertRecords(c *gin.Context) {
 	clusterID := c.Query("cluster_id")
 	status := c.Query("status")
 	limit := getLimit(c, 50)
-	records, err := h.AlertSvc.ListAlertRecords(clusterID, limit)
+	records, err := h.AlertSvc.ListAlertRecords(clusterID, status, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if status != "" {
-		var filtered []interface{}
-		for _, r := range records {
-			if r.Status == status {
-				filtered = append(filtered, r)
-			}
-		}
-		c.JSON(http.StatusOK, gin.H{"items": filtered})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"items": records})
@@ -765,15 +766,10 @@ func (h *Handler) ListAlertRecords(c *gin.Context) {
 
 func (h *Handler) AcknowledgeAlertRecord(c *gin.Context) {
 	id := c.Param("id")
-	var record model.AlertRecord
-	if err := h.store.DB.First(&record, "id = ?", id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "alert record not found"})
+	err := h.AlertSvc.AcknowledgeAlertRecord(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
-	}
-	if record.Status == "firing" {
-		record.Status = "resolved"
-		record.ResolvedAt = time.Now()
-		h.store.UpdateAlertRecord(&record)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "acknowledged"})
 }
@@ -842,23 +838,9 @@ func (h *Handler) ListAuditLogs(c *gin.Context) {
 	username := c.Query("username")
 	action := c.Query("action")
 	limit := getLimit(c, 100)
-	logs, err := h.AuditSvc.ListAuditLogs(resourceType, limit)
+	logs, err := h.AuditSvc.ListAuditLogs(resourceType, username, action, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if username != "" || action != "" {
-		var filtered []interface{}
-		for _, l := range logs {
-			if username != "" && l.Username != username {
-				continue
-			}
-			if action != "" && l.Action != action {
-				continue
-			}
-			filtered = append(filtered, l)
-		}
-		c.JSON(http.StatusOK, gin.H{"items": filtered})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"items": logs})

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,10 +14,26 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+func getAllowedOrigins() []string {
+	origins := []string{"http://localhost:3000", "http://localhost:3001"}
+	if envOrigins := os.Getenv("CORS_ORIGINS"); envOrigins != "" {
+		origins = strings.Split(envOrigins, ",")
+	}
+	return origins
+}
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
-		return origin == "" || origin == "http://localhost:3000" || origin == "http://localhost:3001"
+		if origin == "" {
+			return true
+		}
+		for _, o := range getAllowedOrigins() {
+			if origin == o {
+				return true
+			}
+		}
+		return false
 	},
 }
 

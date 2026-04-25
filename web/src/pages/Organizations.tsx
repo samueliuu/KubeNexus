@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { ProTable, ModalForm, ProFormText, ProFormSelect, ProFormTextArea } from '@ant-design/pro-components'
-import { Button, Tag, message } from 'antd'
+import { Button, Tag, message, Modal } from 'antd'
 import { PlusOutlined, EditOutlined } from '@ant-design/icons'
 import { organizationApi, Organization } from '../api'
 
@@ -30,7 +30,7 @@ const Organizations: React.FC = () => {
     { title: '创建时间', dataIndex: 'created_at', valueType: 'dateTime', hideInSearch: true },
     { title: '操作', valueType: 'option', render: (_: any, r: Organization) => [
       <a key="edit" onClick={() => handleEdit(r)}><EditOutlined /> 编辑</a>,
-      <a key="del" style={{ color: '#ff4d4f' }} onClick={() => { organizationApi.delete(r.id).then(() => { message.success('删除成功'); actionRef.current?.reload() }) }}>删除</a>,
+      <a key="del" style={{ color: '#ff4d4f' }} onClick={() => { Modal.confirm({ title: '确认删除', content: `确定要删除组织 "${r.name}" 吗？此操作不可恢复。`, okType: 'danger', onOk: () => organizationApi.delete(r.id).then(() => { message.success('删除成功'); actionRef.current?.reload() }).catch((err: any) => { message.error(err.response?.data?.error || '操作失败') }) }) }}>删除</a>,
     ]},
   ]
 

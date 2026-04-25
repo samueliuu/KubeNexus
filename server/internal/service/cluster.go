@@ -161,10 +161,10 @@ else
 fi
 
 echo "Deploying 衡牧KubeNexusK3s多集群管理系统 Agent..."
-kubectl apply -f "%s/api/v1/clusters/%s/registration.yaml"
+k3s kubectl apply -f "%s/api/v1/clusters/%s/registration.yaml"
 
 echo "Agent deployed. Waiting for registration..."
-echo "You can check status with: kubectl get pods -n kubenexus-system"
+echo "You can check status with: k3s kubectl get pods -n kubenexus-system"
 `, serverURL, cluster.ID)
 	return script, nil
 }
