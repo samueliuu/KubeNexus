@@ -1,0 +1,19 @@
+serverUrl: "https://kubenexus.example.com"
+clusterToken: ""
+clusterId: ""
+
+image:
+  repository: kubenexus/agent
+  tag: latest
+  pullPolicy: IfNotPresent
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+heartbeatInterval: 30
+syncInterval: 60

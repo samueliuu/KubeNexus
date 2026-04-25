@@ -1,0 +1,6 @@
+apiVersion: v2
+name: kubenexus-agent
+description: 衡牧KubeNexusK3s多集群管理系统 Agent - 集群代理组件
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

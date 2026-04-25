@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kubenexus-agent-config
+  namespace: {{ .Release.Namespace }}
+type: Opaque
+stringData:
+  SERVER_URL: "{{ .Values.serverUrl }}"
+  CLUSTER_TOKEN: "{{ .Values.clusterToken }}"
+  CLUSTER_ID: "{{ .Values.clusterId }}"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubenexus-agent
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubenexus-agent
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubenexus-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubenexus-agent
+subjects:
+- kind: ServiceAccount
+  name: kubenexus-agent
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubenexus-agent
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubenexus-agent
+  template:
+    metadata:
+      labels:
+        app: kubenexus-agent
+    spec:
+      serviceAccountName: kubenexus-agent
+      containers:
+      - name: agent
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: SERVER_URL
+          valueFrom:
+            secretKeyRef:
+              name: kubenexus-agent-config
+              key: SERVER_URL
+        - name: CLUSTER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: kubenexus-agent-config
+              key: CLUSTER_TOKEN
+        - name: CLUSTER_ID
+          valueFrom:
+            secretKeyRef:
+              name: kubenexus-agent-config
+              key: CLUSTER_ID
+        - name: HEARTBEAT_INTERVAL
+          value: "{{ .Values.heartbeatInterval }}"
+        - name: SYNC_INTERVAL
+          value: "{{ .Values.syncInterval }}"
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

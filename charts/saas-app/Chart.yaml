@@ -1,0 +1,6 @@
+apiVersion: v2
+name: saas-app
+description: 衡牧KubeNexusK3s多集群管理系统 应用示例 Chart
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
