@@ -164,6 +164,22 @@ export interface DashboardStats {
   recent_alerts: number
 }
 
+export interface Heartbeat {
+  id: string
+  cluster_id: string
+  node_count: number
+  cpu_usage: number
+  mem_usage: number
+  pod_count: number
+  version: string
+  reported_at: string
+}
+
+export interface LicenseQuota {
+  clusters: { current: number; max: number }
+  deployments: { current: number; max: number }
+}
+
 export const authApi = {
   login: (username: string, password: string) =>
     api.post('/auth/login', { username, password }),
@@ -183,7 +199,9 @@ export const clusterApi = {
   getRegistrationYaml: (id: string) =>
     api.get(`/clusters/${id}/registration.yaml`, { responseType: 'text' }),
   getMetrics: (id: string) =>
-    api.get(`/clusters/${id}/metrics`),
+    api.get<{ items: Heartbeat[] }>(`/clusters/${id}/metrics`),
+  getNodes: (id: string) =>
+    api.get(`/clusters/${id}/nodes`),
 }
 
 export const applicationApi = {
@@ -198,9 +216,9 @@ export const deploymentApi = {
   list: (clusterId?: string) =>
     api.get<{ items: Deployment[] }>('/deployments', { params: { cluster_id: clusterId } }),
   get: (id: string) => api.get<Deployment>(`/deployments/${id}`),
-  create: (data: Partial<Deployment>) => api.post('/deployments', data),
+  create: (data: any) => api.post('/deployments', data),
   batchCreate: (data: any) => api.post('/deployments/batch', data),
-  update: (id: string, data: Partial<Deployment>) => api.put(`/deployments/${id}`, data),
+  update: (id: string, data: any) => api.put(`/deployments/${id}`, data),
   delete: (id: string) => api.delete(`/deployments/${id}`),
 }
 
@@ -215,7 +233,7 @@ export const organizationApi = {
 export const licenseApi = {
   get: () => api.get<License>('/license'),
   activate: (data: any) => api.post('/license/activate', data),
-  getQuota: () => api.get('/license/quota'),
+  getQuota: () => api.get<LicenseQuota>('/license/quota'),
 }
 
 export const alertApi = {
@@ -223,20 +241,22 @@ export const alertApi = {
   createRule: (data: any) => api.post('/alerts/rules', data),
   updateRule: (id: string, data: any) => api.put(`/alerts/rules/${id}`, data),
   deleteRule: (id: string) => api.delete(`/alerts/rules/${id}`),
-  listRecords: (clusterId?: string) =>
-    api.get<{ items: AlertRecord[] }>('/alerts/records', { params: { cluster_id: clusterId } }),
+  listRecords: (params?: { cluster_id?: string; status?: string }) =>
+    api.get<{ items: AlertRecord[] }>('/alerts/records', { params }),
+  acknowledgeRecord: (id: string) => api.put(`/alerts/records/${id}/acknowledge`),
 }
 
 export const configApi = {
   list: (orgId?: string) => api.get<{ items: ConfigTemplate[] }>('/configs', { params: { org_id: orgId } }),
+  get: (id: string) => api.get<ConfigTemplate>(`/configs/${id}`),
   create: (data: any) => api.post('/configs', data),
   update: (id: string, data: any) => api.put(`/configs/${id}`, data),
   delete: (id: string) => api.delete(`/configs/${id}`),
 }
 
 export const auditApi = {
-  list: (resourceType?: string) =>
-    api.get<{ items: AuditLog[] }>('/audit-logs', { params: { resource_type: resourceType } }),
+  list: (params?: { resource_type?: string; username?: string; action?: string }) =>
+    api.get<{ items: AuditLog[] }>('/audit-logs', { params }),
 }
 
 export const userApi = {

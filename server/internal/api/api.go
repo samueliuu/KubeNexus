@@ -3,10 +3,12 @@ package api
 import (
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/kubenexus/server/internal/middleware"
+	"github.com/kubenexus/server/internal/model"
 	"github.com/kubenexus/server/internal/service"
 	"github.com/kubenexus/server/internal/store"
 	"github.com/kubenexus/server/internal/tunnel"
@@ -14,20 +16,20 @@ import (
 )
 
 type Handler struct {
-	ClusterSvc     *service.ClusterService
-	ApplicationSvc *service.ApplicationService
-	DeploymentSvc  *service.DeploymentService
+	ClusterSvc      *service.ClusterService
+	ApplicationSvc  *service.ApplicationService
+	DeploymentSvc   *service.DeploymentService
 	OrganizationSvc *service.OrganizationService
-	LicenseSvc     *service.LicenseService
-	AlertSvc       *service.AlertService
-	ConfigSvc      *service.ConfigService
-	AuditSvc       *service.AuditService
-	UserSvc        *service.UserService
-	AuthSvc        *service.AuthService
-	DashboardSvc   *service.DashboardService
-	TunnelMgr      *tunnel.Manager
-	ServerURL      string
-	store          *store.Store
+	LicenseSvc      *service.LicenseService
+	AlertSvc        *service.AlertService
+	ConfigSvc       *service.ConfigService
+	AuditSvc        *service.AuditService
+	UserSvc         *service.UserService
+	AuthSvc         *service.AuthService
+	DashboardSvc    *service.DashboardService
+	TunnelMgr       *tunnel.Manager
+	ServerURL       string
+	store           *store.Store
 }
 
 func NewHandler(
@@ -47,20 +49,20 @@ func NewHandler(
 	s *store.Store,
 ) *Handler {
 	return &Handler{
-		ClusterSvc:     clusterSvc,
-		ApplicationSvc: appSvc,
-		DeploymentSvc:  deploySvc,
+		ClusterSvc:      clusterSvc,
+		ApplicationSvc:  appSvc,
+		DeploymentSvc:   deploySvc,
 		OrganizationSvc: orgSvc,
-		LicenseSvc:     licenseSvc,
-		AlertSvc:       alertSvc,
-		ConfigSvc:      configSvc,
-		AuditSvc:       auditSvc,
-		UserSvc:        userSvc,
-		AuthSvc:        authSvc,
-		DashboardSvc:   dashboardSvc,
-		TunnelMgr:      tunnelMgr,
-		ServerURL:      serverURL,
-		store:          s,
+		LicenseSvc:      licenseSvc,
+		AlertSvc:        alertSvc,
+		ConfigSvc:       configSvc,
+		AuditSvc:        auditSvc,
+		UserSvc:         userSvc,
+		AuthSvc:         authSvc,
+		DashboardSvc:    dashboardSvc,
+		TunnelMgr:       tunnelMgr,
+		ServerURL:       serverURL,
+		store:           s,
 	}
 }
 
@@ -96,6 +98,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 			clusters.GET("/:id/tunnel", middleware.AgentAuthMiddleware(h.store), h.HandleTunnel)
 			clusters.GET("/:id/metrics", middleware.AuthMiddleware(), h.GetClusterMetrics)
 			clusters.POST("/:id/proxy", middleware.AuthMiddleware(), h.ProxyK8sAPI)
+			clusters.GET("/:id/nodes", middleware.AuthMiddleware(), h.GetClusterNodes)
 		}
 
 		applications := api.Group("/applications")
@@ -145,6 +148,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 			alerts.PUT("/rules/:id", middleware.AdminMiddleware(), h.UpdateAlertRule)
 			alerts.DELETE("/rules/:id", middleware.AdminMiddleware(), h.DeleteAlertRule)
 			alerts.GET("/records", h.ListAlertRecords)
+			alerts.PUT("/records/:id/acknowledge", h.AcknowledgeAlertRecord)
 		}
 
 		configs := api.Group("/configs")
@@ -152,6 +156,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		{
 			configs.GET("", h.ListConfigTemplates)
 			configs.POST("", h.CreateConfigTemplate)
+			configs.GET("/:id", h.GetConfigTemplate)
 			configs.PUT("/:id", h.UpdateConfigTemplate)
 			configs.DELETE("/:id", h.DeleteConfigTemplate)
 		}
@@ -171,6 +176,33 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 			users.DELETE("/:id", h.DeleteUser)
 		}
 	}
+}
+
+func getLimit(c *gin.Context, defaultVal int) int {
+	limitStr := c.Query("limit")
+	if limitStr == "" {
+		return defaultVal
+	}
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		return defaultVal
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	return limit
+}
+
+func getOffset(c *gin.Context) int {
+	offsetStr := c.Query("offset")
+	if offsetStr == "" {
+		return 0
+	}
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		return 0
+	}
+	return offset
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -195,7 +227,7 @@ func (h *Handler) Login(c *gin.Context) {
 	h.AuditSvc.Log(user.ID, user.Username, "login", "user", user.ID, user.Username, "", c.ClientIP())
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
-		"user": gin.H{"id": user.ID, "username": user.Username, "role": user.Role},
+		"user":  gin.H{"id": user.ID, "username": user.Username, "role": user.Role},
 	})
 }
 
@@ -369,7 +401,8 @@ func (h *Handler) HandleTunnel(c *gin.Context) {
 
 func (h *Handler) GetClusterMetrics(c *gin.Context) {
 	id := c.Param("id")
-	metrics, err := h.ClusterSvc.GetClusterMetrics(id, 60)
+	limit := getLimit(c, 60)
+	metrics, err := h.ClusterSvc.GetClusterMetrics(id, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -404,6 +437,28 @@ func (h *Handler) ProxyK8sAPI(c *gin.Context) {
 	})
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *Handler) GetClusterNodes(c *gin.Context) {
+	id := c.Param("id")
+	cluster, err := h.ClusterSvc.GetCluster(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "cluster not found"})
+		return
+	}
+	if !cluster.WsConnected {
+		c.JSON(http.StatusOK, gin.H{"items": []interface{}{}})
+		return
+	}
+	resp, err := h.TunnelMgr.ProxyRequest(id, &tunnel.TunnelPayload{
+		Method: "GET",
+		Path:   "/api/v1/nodes",
+	})
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"items": []interface{}{}})
 		return
 	}
 	c.JSON(http.StatusOK, resp)
@@ -633,7 +688,7 @@ func (h *Handler) GetLicenseQuota(c *gin.Context) {
 	clusterCurrent, clusterMax, _ := h.LicenseSvc.CheckQuota("clusters")
 	deployCurrent, deployMax, _ := h.LicenseSvc.CheckQuota("deployments")
 	c.JSON(http.StatusOK, gin.H{
-		"clusters":   gin.H{"current": clusterCurrent, "max": clusterMax},
+		"clusters":    gin.H{"current": clusterCurrent, "max": clusterMax},
 		"deployments": gin.H{"current": deployCurrent, "max": deployMax},
 	})
 }
@@ -688,12 +743,39 @@ func (h *Handler) DeleteAlertRule(c *gin.Context) {
 
 func (h *Handler) ListAlertRecords(c *gin.Context) {
 	clusterID := c.Query("cluster_id")
-	records, err := h.AlertSvc.ListAlertRecords(clusterID, 50)
+	status := c.Query("status")
+	limit := getLimit(c, 50)
+	records, err := h.AlertSvc.ListAlertRecords(clusterID, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if status != "" {
+		var filtered []interface{}
+		for _, r := range records {
+			if r.Status == status {
+				filtered = append(filtered, r)
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{"items": filtered})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"items": records})
+}
+
+func (h *Handler) AcknowledgeAlertRecord(c *gin.Context) {
+	id := c.Param("id")
+	var record model.AlertRecord
+	if err := h.store.DB.First(&record, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "alert record not found"})
+		return
+	}
+	if record.Status == "firing" {
+		record.Status = "resolved"
+		record.ResolvedAt = time.Now()
+		h.store.UpdateAlertRecord(&record)
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "acknowledged"})
 }
 
 func (h *Handler) ListConfigTemplates(c *gin.Context) {
@@ -704,6 +786,16 @@ func (h *Handler) ListConfigTemplates(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"items": configs})
+}
+
+func (h *Handler) GetConfigTemplate(c *gin.Context) {
+	id := c.Param("id")
+	tpl, err := h.ConfigSvc.GetConfigTemplate(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "config template not found"})
+		return
+	}
+	c.JSON(http.StatusOK, tpl)
 }
 
 func (h *Handler) CreateConfigTemplate(c *gin.Context) {
@@ -747,9 +839,26 @@ func (h *Handler) DeleteConfigTemplate(c *gin.Context) {
 
 func (h *Handler) ListAuditLogs(c *gin.Context) {
 	resourceType := c.Query("resource_type")
-	logs, err := h.AuditSvc.ListAuditLogs(resourceType, 100)
+	username := c.Query("username")
+	action := c.Query("action")
+	limit := getLimit(c, 100)
+	logs, err := h.AuditSvc.ListAuditLogs(resourceType, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if username != "" || action != "" {
+		var filtered []interface{}
+		for _, l := range logs {
+			if username != "" && l.Username != username {
+				continue
+			}
+			if action != "" && l.Action != action {
+				continue
+			}
+			filtered = append(filtered, l)
+		}
+		c.JSON(http.StatusOK, gin.H{"items": filtered})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"items": logs})

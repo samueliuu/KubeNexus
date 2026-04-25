@@ -494,3 +494,18 @@ type DashboardStats struct {
 	TotalOrganizations  int `json:"total_organizations"`
 	RecentAlerts        int `json:"recent_alerts"`
 }
+
+func StartHeartbeatCleanup(s *store.Store) {
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		clusters, err := s.ListClusters()
+		if err != nil {
+			continue
+		}
+		cutoff := time.Now().Add(-7 * 24 * time.Hour)
+		for _, c := range clusters {
+			s.CleanupOldHeartbeats(c.ID, cutoff)
+		}
+	}
+}

@@ -79,6 +79,11 @@ func main() {
 
 	api.StartClusterStatusChecker(clusterSvc)
 
+	alertEngine := service.NewAlertEngine(s)
+	alertEngine.Start()
+
+	go service.StartHeartbeatCleanup(s)
+
 	log.Printf("衡牧KubeNexusK3s多集群管理系统 Server starting on :%s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("failed to start server: %v", err)
